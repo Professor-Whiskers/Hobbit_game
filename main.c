@@ -42,7 +42,9 @@ void discard(player *, int, int, int const *, int *);
 
 int play_turn(int const *, int *, player *, int);
 
+int get_point(int);
 
+void end_game(player *);
 
 int main() {
     int i;
@@ -56,8 +58,6 @@ int main() {
     player player3 = {1, 0, 0};
     player player4 = {1, 0, 0};
     player p[4] = {player1, player2, player3, player4};
-
-    printf("\nHello, World!\n");
 
     shuffle(deck);
 
@@ -96,6 +96,7 @@ void swap(int arr[], int a, int b){
 }
 
 void discard(player * p, int player, int card, int const *deck, int *p_deck){
+    int target, store, p_point, t_point;
     switch (card){
         default:
             printf("Error has occurred");
@@ -109,17 +110,15 @@ void discard(player * p, int player, int card, int const *deck, int *p_deck){
             return;
         case THORIN:
             // TODO: CHOOSE TARGET
-            printf("LA");
-            int target = 2;
-            int store = p[player].hand;
+            target = 2;
+            store = p[player].hand;
             p[player].hand = p[target].hand;
             p[target].hand = store;
             // TODO: SEND RECEIPTS
             return;
         case KILI:
             // TODO: CHOOSE TARGET
-            printf("LA");
-            int target = 2;
+            target = 2;
             if (p[target].hand == ARK){
                 p[target].in_game = 0;
             } else {
@@ -131,16 +130,45 @@ void discard(player * p, int player, int card, int const *deck, int *p_deck){
             p[player].immunity = 1;
             return;
         case LEGOLAS:
-            // TODO: COMPARE
+            // TODO: CHOOSE TARGET
+            target = 2;
+            t_point = get_point(p[target].hand);
+            p_point = get_point(p[player].hand);
+            if (t_point > p_point){
+                p[player].in_game = 0;
+                //TODO: SEND RECEIPT
+            } else if (p_point > t_point) {
+                p[target].in_game = 0;
+                //TODO: SEND RECEIPT
+            } else {
+                //TODO: SEND RECEIPT
+            }
             return;
         case TAUREIL:
             // Compare
+            // TODO: CHOOSE TARGET
+            target = 2;
+            t_point = get_point(p[target].hand);
+            p_point = get_point(p[player].hand);
+            if (t_point < p_point){
+                p[player].in_game = 0;
+                //TODO: SEND RECEIPT
+            } else if (p_point < t_point) {
+                p[target].in_game = 0;
+                //TODO: SEND RECEIPT
+            } else {
+                //TODO: SEND RECEIPT
+            }
             return;
         case BARD:
-            // TODO: PEEK
+            // TODO: CHOOSE TARGET
+
+            //TODO: SEND PLAYER TARGET CARD
             return;
         case SMAUG:
-            // TODO: GUESS
+            // TODO: CHOOSE TARGET
+
+            // TODO: CHOOSE GUESS AND CHECK
             return;
         case RING:
             // nothing
@@ -151,22 +179,34 @@ void discard(player * p, int player, int card, int const *deck, int *p_deck){
 #define HAND 1
 
 int play_turn(int const deck[], int *p_deck, player p[], int player){
+    if ((*p_deck) == 17){
+        end_game(p);
+        return 1;
+    }
+    if (!p[player].in_game){
+        return 0;
+    }
+    p[player].immunity = 0;
     // Draw
     int draw = deck[*p_deck], card;
     (*p_deck) ++;
     if ((draw == BILBO && (p[player].hand == KILI || p[player].hand == THORIN))
     || (p[player].hand == BILBO && (draw == KILI || draw == THORIN))) {
-        // TODO: FORCE DISCARD
+        // TODO: SEND RECEIPT
+        discard(p, player, BILBO, deck, p_deck);
+        if (p[player].hand == BILBO){
+            p[player].hand = draw;
+        }
     }
     // TODO: GET CHOICE
     int choice = HAND;
 
-    if (choice == HAND){
+    if (choice){
         card = p[player].hand;
         p[player].hand = draw;
-        discard(p, player, card);
+        discard(p, player, card, deck, p_deck);
     } else {
-        discard(p, player, draw);
+        discard(p, player, draw, deck, p_deck);
     }
 
     int in = 0, i;
@@ -179,4 +219,47 @@ int play_turn(int const deck[], int *p_deck, player p[], int player){
         return 0;
     }
 
+}
+
+int get_point(int card){
+    switch (card){
+        default:
+            return 7;
+        case ARK:
+            return 8;
+        case BILBO:
+            return 7;
+        case THORIN:
+            return 6;
+        case KILI:
+            return 5;
+        case GANDALF:
+            return 4;
+        case LEGOLAS:
+            return 3;
+        case TAUREIL:
+            return 3;
+        case BARD:
+            return 2;
+        case SMAUG:
+            return 1;
+        case RING:
+            return 0;
+    }
+}
+
+void end_game(player p[]){
+    int winner, w_score = 0, score, i;
+    for (i = 0; i < 4; i++){
+        if (p[i].in_game){
+            if(!(score = get_point(p[i].hand))){
+                score = 7;
+            }
+            if (score > w_score){
+                winner = i;
+                w_score = score;
+            }
+        }
+    }
+    // TODO: SEND WINNER RECEIPT
 }
