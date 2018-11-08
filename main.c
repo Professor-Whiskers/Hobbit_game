@@ -445,14 +445,17 @@ void discard_receipt(player *p, int player, int card){
     printf("Player %d discarded ", player + 1);
     print_card(card);
     printf("\n");
+    fflush(stdout);
     for (i = 0; i < 4; i++) {
         if (i == player) {
             read(p[i].sock, &store, 10);
+            printf("PPEP");
             write(p[i].sock, "IDIS", 5);
             read(p[i].sock, &store, 10);
             write(p[i].sock, &card, 1);
         } else {
             read(p[i].sock, &store, 10);
+            printf("HEHE");
             write(p[i].sock, "DISC", 5);
             read(p[i].sock, &store, 10);
             write(p[i].sock, &player, 1);
@@ -470,13 +473,16 @@ int choose_target(player *p, int player){
     write(p[player].sock, "CHTP", 5);
     printf("asked %d target\n", player);
     read(p[player].sock, buffer, 10);
-    target = buffer[0];
+    target = (int) buffer[0];
+
     printf("choose : %d\n", target);
     if (!p[target].in_game || p[target].immunity){
+        printf("DAMN");
         read(p[player].sock, buffer, 10);
         write(p[player].sock, "CANT", 5);
         target = choose_target(p, player);
     }
+    printf("DOD");
     return target;
 }
 

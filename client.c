@@ -22,7 +22,8 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <arpa/inet.h>
-#include <zconf.h>
+#include <unistd.h>
+
 
 #define PORT 8080
 
@@ -57,7 +58,7 @@ int main(int argc, char const *argv[])
         return -1;
     }
 
-    memset(&serv_addr, '0', sizeof(serv_addr));
+    memset(&serv_addr, 0, sizeof(serv_addr));
 
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(PORT);
@@ -87,8 +88,9 @@ int main(int argc, char const *argv[])
     while (!over && c < 50){
         memset(buffer, 0, 1024);
         c ++;
-        printf("\nListening...");
         write(sock, &hand, 1);
+        printf("\nListening...");
+        fflush(stdout);
         read(sock, buffer, 5);
         printf("\n%s\n", buffer);
         if (com_str(buffer, "OVER", 4)){
@@ -121,6 +123,7 @@ int main(int argc, char const *argv[])
             printf("You chose %d\n", choice);
             suc = (int) write(sock, &choice, 1);
             printf("Code %d", suc);
+            fflush(stdout);
         } else
         if (com_str(buffer, "1WIN", 4)){
             write(sock, &hand, 1);
