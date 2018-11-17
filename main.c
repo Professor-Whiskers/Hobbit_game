@@ -42,8 +42,6 @@ typedef struct {
 
 void shuffle(int *);
 
-void swap(int *, int, int);
-
 void discard(player *, int, int, int const *, int *);
 
 int play_turn(int const *, int *, player *, int);
@@ -63,6 +61,10 @@ void discard_receipt(player *, int, int);
 int choose_target(player *, int);
 
 void send_message(player *, char const *);
+
+int com_str(char const *, char const *, int);
+
+void send_code(player const *, int const, char const *);
 
 int main() {
     int i;
@@ -122,8 +124,8 @@ int main() {
         game_over = play_turn(deck, p_deck, p, i);
     }
     printf("OVER");
+    send_message(p, "OVER");
     for (i = 0; i < 4; i ++){
-        send_message(p, "OVER");
         close(p[i].sock);
     }
     return 0;
@@ -144,15 +146,10 @@ void shuffle(int deck[]){
     }
 }
 
-void swap(int arr[], int a, int b){
-    int s = arr[a];
-    arr[a] = arr[b];
-    arr[b] = s;
-}
 
 void discard(player * p, int player, int card, int const *deck, int *p_deck){
-    int target, store, p_point, t_point, i, buffer[1024] = {0};
-    memset(buffer, 0, 1024);
+    int target, store, p_point, t_point, i, package[10];
+    char buffer[1024] = {0};
     switch (card){
         default:
             printf("\nError has occurred\n");
@@ -171,7 +168,28 @@ void discard(player * p, int player, int card, int const *deck, int *p_deck){
             store = p[player].hand;
             p[player].hand = p[target].hand;
             p[target].hand = store;
-            // TODO: write RECEIPTS
+
+            send_code(p, player, "ITHR");
+            read(p[player].sock, buffer, 1);
+            write(p[player].sock, &p[player].hand, 1);
+
+            send_code(p, target, "THOR");
+            read(p[target].sock, buffer, 1);
+            write(p[target].sock, &p[target].hand, 1);
+            read(p[target].sock, buffer, 1);
+            write(p[target].sock, &player, 1);
+
+            package[0] = player;
+            package[1] = target;
+            for (i = 0; i < 4; i ++){
+                if (i == player || i == target){
+                    continue;
+                }
+
+                send_code(p, i, "OTHR");
+                read(p[i].sock, buffer, 1);
+                write(p[i].sock, package, 2);
+            }
             return;
         case KILI:
             discard_receipt(p, player, KILI);
@@ -181,7 +199,9 @@ void discard(player * p, int player, int card, int const *deck, int *p_deck){
                 lose(p, target);
             } else {
                 p[target].hand = deck[*p_deck];
-
+                send_code(p, target, "KILI");
+                read(p[target].sock, buffer, 1);
+                write(p[target].sock, &p[target].hand, 1);
                 (*p_deck)++;
             }
             return;
@@ -219,22 +239,31 @@ void discard(player * p, int player, int card, int const *deck, int *p_deck){
         case BARD:
             discard_receipt(p, player, BARD);
             target = choose_target(p, player);
-            printf("Got target");
-            read(p[player].sock, buffer, 10);
-            write(p[player].sock, "BARD", 5);
-            read(p[player].sock, buffer, 10);
+
+            send_code(p, player, "BARD");
+            read(p[player].sock, buffer, 1);
             write(p[player].sock, &p[target].hand, 5);
-            read(p[target].sock, buffer, 10);
-            write(p[target].sock, "PLAC", 5);
-            read(p[target].sock, buffer, 10);
+
+            send_code(p, target, "PLAC");
+            read(p[target].sock, buffer, 1);
             write(p[target].sock, &player, 5);
-            //TODO: write PLAYER TARGET CARD
+
             return;
         case SMAUG:
             discard_receipt(p, player, SMAUG);
             target = choose_target(p, player);
-            printf("GOT TARGET");
-            // TODO: CHOOSE GUESS AND CHECK
+
+            send_code(p, player, "SMAU");
+            read(p[player].sock, buffer, 1);
+
+            if (buffer[0] == p[target].hand){
+                write(p[player].sock, "CORR", 5);
+                read(p[target].sock, buffer, 1);
+                write(p[target].sock, "GUES", 5);
+                lose(p, target);
+            } else {
+                write(p[player].sock, "INCO", 5);
+            }
             return;
         case RING:
             discard_receipt(p, player, RING);
@@ -243,10 +272,9 @@ void discard(player * p, int player, int card, int const *deck, int *p_deck){
     }
 }
 
-#define HAND 1
 
 int play_turn(int const deck[], int *p_deck, player p[], int player){
-    int i, choice;
+    int i, choice, err;
     char buffer[1024] = {0};
     if ((*p_deck) > 16){
         end_game(p);
@@ -254,47 +282,45 @@ int play_turn(int const deck[], int *p_deck, player p[], int player){
     }
 
     if (!p[player].in_game){
-        printf("Player out");
         return 0;
     }
     for (i = 0; i < 4; i++){
         if (i == player){
-            read(p[i].sock, buffer, 10);
-            write(p[i].sock, "TURN", 5);
-            read(p[i].sock, buffer, 10);
+            send_code(p, player, "TURN");
         } else {
-            read(p[i].sock, buffer, 10);
-            write(p[i].sock, "WAIT", 5);
+            send_code(p, i, "WAIT");
         }
     }
+
     p[player].immunity = 0;
     // Draw
+
     int draw = deck[*p_deck], card;
     (*p_deck) ++;
 
-    printf("Player %d drew %d\n", 1+ player, draw);
+    printf("Player %d drew ", 1+ player);
+    print_card(draw);
+    printf(".\n");
+
+    read(p[player].sock, buffer, 1);
+
     write(p[player].sock, &draw, 1);
 
     if ((draw == BILBO && (p[player].hand == KILI || p[player].hand == THORIN))
     || (p[player].hand == BILBO && (draw == KILI || draw == THORIN))) {
-        read(p[player].sock, buffer, 10);
-        write(p[player].sock, "BILD", 5);
+        send_code(p, player, "BILD");
         discard(p, player, BILBO, deck, p_deck);
         if (p[player].hand == BILBO){
             p[player].hand = draw;
         }
     } else {
-        read(p[player].sock, buffer, 10);
-        write(p[player].sock, "CHOD", 5);
-        printf("asked\n");
-        read(p[player].sock, buffer, 10);
+        send_code(p, player, "CHOD");
+        read(p[player].sock, buffer, 1);
         choice = buffer[0];
-        printf("choose : %d\n", choice);
         if (choice){
             card = p[player].hand;
             p[player].hand = draw;
             discard(p, player, card, deck, p_deck);
-            printf("Code 1.");
         } else {
             discard(p, player, draw, deck, p_deck);
         }
@@ -346,6 +372,7 @@ int get_point(int card){
 
 void end_game(player p[]){
     int winner = 0, w_score = 0, score, i;
+    char buffer[5];
     for (i = 0; i < 4; i++){
         if (p[i].in_game){
             if(!(score = get_point(p[i].hand))){
@@ -360,9 +387,8 @@ void end_game(player p[]){
     winner ++;
     printf("Player %d", winner);
     for (i = 0; i < 4; i ++){
-        read(p[i].sock, &w_score, 1);
-        write(p[i].sock, "1WIN", 5);
-        read(p[i].sock, &w_score, 1);
+        send_code(p, i, "1WIN");
+        read(p[i].sock, buffer, 1);
         write(p[i].sock, &winner, 1);
     }
 }
@@ -425,64 +451,52 @@ void print_card(int card){
 }
 
 void lose(player *p, int loser){
-    int i, store;
+    int i;
+    char buffer[5];
     p[loser].in_game = 0;
     for (i = 0; i < 4; i++) {
         if (i == loser) {
-            read(p[i].sock, &store, 10);
-            write(p[i].sock, "LOST", 5);
+            send_code(p, i, "LOST");
         } else {
-            read(p[i].sock, &store, 10);
-            write(p[i].sock, "LOSS", 5);
-            read(p[i].sock, &store, 10);
+            send_code(p, i, "LOSS");
+            read(p[i].sock, buffer, 1);
             write(p[i].sock, &loser, 1);
         }
     }
 }
 
 void discard_receipt(player *p, int player, int card){
-    int i, store[1024] = {0};
+    int i;
+    char store[128];
     printf("Player %d discarded ", player + 1);
     print_card(card);
     printf("\n");
     fflush(stdout);
     for (i = 0; i < 4; i++) {
         if (i == player) {
-            read(p[i].sock, &store, 10);
-            printf("PPEP");
-            write(p[i].sock, "IDIS", 5);
-            read(p[i].sock, &store, 10);
+            send_code(p, i, "IDIS");
+            read(p[i].sock, store, 1);
             write(p[i].sock, &card, 1);
         } else {
-            read(p[i].sock, &store, 10);
-            printf("HEHE");
-            write(p[i].sock, "DISC", 5);
-            read(p[i].sock, &store, 10);
+            send_code(p, i, "DISC");
+            read(p[i].sock, store, 1);
             write(p[i].sock, &player, 1);
-            read(p[i].sock, &store, 10);
+            read(p[i].sock, store, 1);
             write(p[i].sock, &card, 1);
         }
     }
 }
 
 int choose_target(player *p, int player){
-    char buffer[128] = {0};
+    char buffer[5] = {0};
     int target;
-    printf("Listening...");
-    read(p[player].sock, buffer, 10);
-    write(p[player].sock, "CHTP", 5);
-    printf("asked %d target\n", player);
-    read(p[player].sock, buffer, 10);
+    send_code(p, player, "CHTP");
+    read(p[player].sock, buffer, 1);
     target = (int) buffer[0];
-
-    printf("choose : %d\n", target);
     if (!p[target].in_game || p[target].immunity){
-        printf("DAMN");
-        read(p[player].sock, buffer, 10);
-        write(p[player].sock, "CANT", 5);
+        send_code(p, player, "CANT");
         target = choose_target(p, player);
     }
-    printf("DOD");
     return target;
 }
 
@@ -490,7 +504,27 @@ void send_message(player *p, char const *msg){
     int i;
     char buffer[10] = {0};
     for (i = 0; i < 4; i ++){
-        read(p[i].sock, buffer, 10);
+        memset(buffer, 0, 4);
+        while(!com_str(buffer, "READ", 4)){
+            read(p[i].sock, buffer, 5);
+        }
         write(p[i].sock, msg, 5);
     }
+}
+
+int com_str(char const *str1, char const *str2, int len){
+    int i, b = 1;
+    for (i = 0; i < len; i ++){
+        b *= str1[i] == str2[i];
+    }
+    return b;
+}
+
+void send_code(player const *p, int const player, char const *msg){
+    char buffer[10];
+    memset(buffer, 0, 4);
+    while(!com_str(buffer, "READ", 4)){
+        read(p[player].sock, buffer, 5);
+    }
+    write(p[player].sock, msg, 5);
 }

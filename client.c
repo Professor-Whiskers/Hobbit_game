@@ -79,23 +79,22 @@ int main(int argc, char const *argv[])
     printf("Your first card is ");
     hand = buffer[0];
     print_card(hand);
-    //write(sock, "Ye", 3, 0);
+
     printf("\n");
     int c = 0;
     
     // BEGIN LOOP
     
-    while (!over && c < 50){
+    while (!over && c < 100){
         memset(buffer, 0, 1024);
         c ++;
-        write(sock, &hand, 1);
-        printf("\nListening...");
+        write(sock, "READ", 5);
         fflush(stdout);
-        read(sock, buffer, 5);
-        printf("\n%s\n", buffer);
+        read(sock , buffer, 5);
+        //printf("%s\n", buffer);
         if (com_str(buffer, "OVER", 4)){
             over = 1;
-            printf("OVERED");
+            printf("\nGAME OVER\n");
         } else
         if (com_str(buffer, "TURN", 4)){
             write(sock, &hand, 1);
@@ -107,10 +106,13 @@ int main(int argc, char const *argv[])
             printf("\n");
         } else
         if (com_str(buffer, "WAIT", 4)){
-            printf("\nIt's another player's turn.");
+            printf("It's another player's turn.\n");
         } else
         if (com_str(buffer, "BILD", 4)){
-            printf("\nYou have to discard Bilbo.");
+            printf("You have to discard Bilbo.\n Your hand is now ");
+            print_card(draw);
+            printf(".\n");
+            hand = draw;
         } else
         if (com_str(buffer, "CHOD", 4)){
             printf("\nDo you want to play ");
@@ -119,24 +121,38 @@ int main(int argc, char const *argv[])
             print_card(draw);
             printf(" (enter 0)\n");
             fflush(stdin);
+            fflush(stdout);
             scanf("%d", &choice);
-            printf("You chose %d\n", choice);
-            suc = (int) write(sock, &choice, 1);
-            printf("Code %d", suc);
+            if(choice){
+                printf("You chose ");
+                print_card(hand);
+                printf(". Your hand is now ");
+                print_card(draw);
+                printf("\n");
+                hand = draw;
+            } else {
+                printf("You chose ");
+                print_card(draw);
+                printf(". Your hand is now ");
+                print_card(hand);
+                printf("\n");
+            }
+
+            write(sock, &choice, 1);
             fflush(stdout);
         } else
         if (com_str(buffer, "1WIN", 4)){
             write(sock, &hand, 1);
             read(sock, buffer, 1);
-            printf("GAME OVER. THE WINNER IS PLAYER %d", buffer[0]);
+            printf("GAME OVER. THE WINNER IS PLAYER %d\n", buffer[0]);
         } else
         if (com_str(buffer, "LOST", 4)){
-            printf("You Lost.");
+            printf("You Lost.\n");
         } else
         if (com_str(buffer, "LOSS", 4)){
             write(sock, &hand, 1);
             read(sock, buffer, 1);
-            printf("Player %d lost! Sucks to be them!", 1 + buffer[0]);
+            printf("Player %d lost! Sucks to be them!\n", 1 + buffer[0]);
         } else
         if (com_str(buffer, "IDIS", 4)){
             write(sock, &hand, 1);
@@ -160,11 +176,10 @@ int main(int argc, char const *argv[])
             suc = 1;
             while (suc){
                 printf("Who do you want to target? ");
+                fflush(stdout);
                 fflush(stdin);
-                scanf("%c", &buffer[0]);
-                choice = (int) buffer[0] - '0';
+                scanf("%d", &choice);
                 if (choice > 0 && choice < 5){
-                    choice --;
                     suc = 0;
                 } else {
                     printf("Invalid input.");
@@ -175,21 +190,94 @@ int main(int argc, char const *argv[])
             write(sock, &choice, 1);
         } else
         if (com_str(buffer, "CANT", 4)) {
-            printf("Player cannot be targeted. ");
+            printf("Player cannot be targeted.\n");
         } else
         if (com_str(buffer, "PLAC", 4)) {
             write(sock, &hand, 1);
             read(sock, buffer, 1);
-            printf("Player %d looked at your hand.\n", buffer[0]);
+            printf("Player %d looked at your hand.\n", 1 + buffer[0]);
         } else
         if (com_str(buffer, "BARD", 4)) {
             write(sock, &hand, 1);
             read(sock, buffer, 1);
-            printf("Player %d has ", choice);
+            printf("Player %d has ", 1 + choice);
             print_card(buffer[0]);
             printf(".\n");
+        } else
+        if (com_str(buffer, "KILI", 4)) {
+            printf("You were forced to discard ");
+            print_card(hand);
+            printf(".\n");
+            fflush(stdout);
+            write(sock, &hand, 1);
+            read(sock, buffer, 1);
+            hand = buffer[0];
+            printf("You picked up ");
+            print_card(hand);
+            printf(".\n");
+            fflush(stdout);
+        } else
+        if (com_str(buffer, "ITHR", 4)) {
+            write(sock, &hand, 1);
+            read(sock, buffer, 1);
+            hand = buffer[0];
+            printf("You swapped hands with player %d.\nYou now have ", choice + 1);
+            print_card(hand);
+            printf(".\n");
+            fflush(stdout);
+        } else
+        if (com_str(buffer, "THOR", 4)) {
+            write(sock, &hand, 1);
+            read(sock, buffer, 1);
+            hand = buffer[0];
+            write(sock, &hand, 1);
+            read(sock, buffer, 1);
+            player = buffer[0];
+            printf("You swapped hands with player %d.\nYou now have ", player + 1);
+            print_card(hand);
+            printf(".\n");
+            fflush(stdout);
+        } else
+        if (com_str(buffer, "SMAU", 4)) {
+            printf("Guess a card. (Enter the ID)\n\n"
+                    "Name                  No. Points  ID\n"
+                   "Arkenstone            1x  8       0\n"
+                   "Bilbo Baggins         1x  7       1\n"
+                   "Thorin Oakenshield    1x  6       2\n"
+                   "Kili and bro          2x  5       3\n"
+                   "Gandalf               2x  4       4\n"
+                   "Legolas               1x  3       5\n"
+                   "Taureil               1x  3       6\n"
+                   "Bard                  2x  2       7\n"
+                   "The One Ring          1x  0/7     9\n\n");
+            suc = 1;
+            while (suc){
+                printf("Guess (Input ID): ");
+                fflush(stdout);
+                fflush(stdin);
+                scanf("%d", &choice);
+                if (choice >= 0 && choice < 10 && choice != 8){
+                    suc = 0;
+                } else {
+                    printf("\nInvalid input.\n");
+                }
+            }
+            write(sock, &choice, 1);
+            read(sock, buffer, 5);
+            if (com_str(buffer, "CORR", 4)){
+                printf("You guessed correctly.\n");
+            } else {
+                printf("You guessed incorrectly.\n");
+            }
+        } else
+        if (com_str(buffer, "GUES", 4)) {
+            printf("Your card was guessed!\n");
+        } else
+        if (com_str(buffer, "OTHR", 4)) {
+            write(sock, &hand, 1);
+            read(sock, buffer, 2);
+            printf("Player %d swapped hands with player %d\n", buffer[0] + 1, 1 + buffer[1]);
         }
-
     }
     return 0;
 }
